@@ -38,7 +38,7 @@ bi-stockbit/
 
 Please ensure the following tools are installed before starting:
 
-- [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
+- Python 3.11+ (or [Miniconda](https://docs.conda.io/en/latest/miniconda.html))
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) with WSL2 backend enabled
 - [Power BI Desktop](https://www.microsoft.com/en-us/download/details.aspx?id=58494)
 
@@ -55,9 +55,20 @@ cd bi-stockbit
 
 ### 2. Prepare the Python environment
 
+**Option A: Using standard Python venv (Recommended)**
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+pip install uv
+uv init
+uv add pandas sqlalchemy psycopg2-binary python-dotenv
+```
+
+**Option B: Using Miniconda**
 ```bash
 conda create -n bi-stockbit python=3.11 -y
 conda activate bi-stockbit
+pip install uv  # Install uv if missing
 uv init
 uv add pandas sqlalchemy psycopg2-binary python-dotenv
 ```
@@ -65,7 +76,11 @@ uv add pandas sqlalchemy psycopg2-binary python-dotenv
 ### 3. Configure environment variables
 
 ```bash
+# Mac/Linux/WSL
 cp .env.example .env
+
+# Windows (CMD / PowerShell)
+copy .env.example .env
 ```
 
 Open `.env` and fill in the following values:
@@ -96,7 +111,11 @@ Ensure the `stockbit-pg` container has a `healthy` status.
 ### 5. Create the database schema
 
 ```bash
+# Mac/Linux/WSL/Windows CMD
 docker exec -i stockbit-pg psql -U stockbit -d stockbit < sql/schema.sql
+
+# Windows PowerShell specific
+Get-Content sql\schema.sql | docker exec -i stockbit-pg psql -U stockbit -d stockbit
 ```
 
 Verify that the three tables have been successfully created:
@@ -127,8 +146,12 @@ python etl/etl.py
 Verify the data has been loaded successfully:
 
 ```bash
+# Mac/Linux/WSL
 docker exec stockbit-pg psql -U stockbit -d stockbit -c \
   "SELECT ticker_code, COUNT(*) FROM fact_stock_prices f JOIN dim_ticker t ON f.ticker_id = t.ticker_id GROUP BY ticker_code;"
+
+# Windows (CMD / PowerShell)
+docker exec stockbit-pg psql -U stockbit -d stockbit -c "SELECT ticker_code, COUNT(*) FROM fact_stock_prices f JOIN dim_ticker t ON f.ticker_id = t.ticker_id GROUP BY ticker_code;"
 ```
 
 Expected output:
