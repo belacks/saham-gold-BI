@@ -256,9 +256,3 @@ docker compose down && docker compose up -d
 Pastikan `schema.sql` sudah dijalankan terlebih dahulu sebelum menjalankan `etl.py`.
 
 ---
-
-## Catatan untuk Tim
-
-Setelah ETL selesai dijalankan dan Power BI sudah terhubung, simpan file `.pbix` dan bagikan ke anggota tim. Data sudah tersimpan di dalam file tersebut sehingga anggota lain tidak perlu menjalankan Docker atau ETL ulang untuk mulai membangun visualisasi dashboard.
-
-Docker hanya perlu berjalan kembali jika ingin me-refresh data dengan dataset yang diperbarui.
