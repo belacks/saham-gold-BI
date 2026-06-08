@@ -1,4 +1,4 @@
-# BI Dashboard — Stockbit (Group 8)
+# BI Dashboard — Stockbit
 
 A Business Intelligence dashboard for historical analysis of EMAS and GOLD stock movements on the Indonesia Stock Exchange (IDX), built as a Business Intelligence course project at Telkom University.
 
