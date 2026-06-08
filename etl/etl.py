@@ -1,5 +1,6 @@
 import os
 import sys
+import re
 import pandas as pd
 import numpy as np
 from pathlib import Path
@@ -48,9 +49,14 @@ def parse_indo_price(value: str) -> float:
     if pd.isna(value):
         return np.nan
     s = str(value).strip().strip('"')
+    if not s or s == "-":
+        return np.nan
     s = s.replace(".", "")   # remove thousands separator
     s = s.replace(",", ".")  # comma → decimal point
-    return float(s)
+    try:
+        return float(s)
+    except ValueError:
+        return np.nan
 
 
 def parse_indo_volume(value: str) -> int:
@@ -63,6 +69,8 @@ def parse_indo_volume(value: str) -> int:
     if pd.isna(value):
         return 0
     s = str(value).strip().strip('"')
+    if not s or s == "-":
+        return 0
 
     multiplier = 1
     if s.endswith("M"):
@@ -77,7 +85,10 @@ def parse_indo_volume(value: str) -> int:
 
     s = s.replace(".", "")   # remove thousands separator (if any)
     s = s.replace(",", ".")  # comma → decimal point
-    return int(float(s) * multiplier)
+    try:
+        return int(float(s) * multiplier)
+    except ValueError:
+        return 0
 
 
 def parse_indo_pct(value: str) -> float:
@@ -89,25 +100,41 @@ def parse_indo_pct(value: str) -> float:
     if pd.isna(value):
         return np.nan
     s = str(value).strip().strip('"')
+    if not s or s == "-":
+        return np.nan
     s = s.replace("%", "")
     s = s.replace(",", ".")
-    return float(s)
+    try:
+        return float(s)
+    except ValueError:
+        return np.nan
 
 
 # ── Step 1: Extract ──────────────────────────────────────────
 def extract() -> pd.DataFrame:
-    """Read both CSVs, tag with ticker_code, and concatenate."""
-    files = {
-        "EMAS": DATA_DIR / "Data Historis EMAS.csv",
-        "GOLD": DATA_DIR / "Data Historis GOLD.csv",
-    }
+    """Scan DATA_DIR for files matching 'Data Historis *.csv', tag with ticker_code, and concatenate."""
+    csv_files = list(DATA_DIR.glob("Data Historis *.csv"))
+    if not csv_files:
+        print(f"⚠ No matching CSV files found in {DATA_DIR}")
+        sys.exit(1)
 
     frames = []
-    for ticker, path in files.items():
-        df = pd.read_csv(path, encoding="utf-8-sig")
-        df["ticker_code"] = ticker
-        frames.append(df)
-        print(f"  Extracted {ticker}: {len(df)} rows")
+    for path in csv_files:
+        match = re.search(r"Data Historis (\w+)\.csv", path.name)
+        if not match:
+            continue
+        ticker = match.group(1)
+        try:
+            df = pd.read_csv(path, encoding="utf-8-sig")
+            df["ticker_code"] = ticker
+            frames.append(df)
+            print(f"  Extracted {ticker}: {len(df)} rows")
+        except Exception as e:
+            print(f"⚠ Error reading {path.name}: {e}")
+
+    if not frames:
+        print("⚠ No valid data frames could be extracted.")
+        sys.exit(1)
 
     combined = pd.concat(frames, ignore_index=True)
     print(f"  Total extracted: {len(combined)} rows")
@@ -189,7 +216,7 @@ def load_dim_date(df: pd.DataFrame, engine) -> pd.DataFrame:
 
 
 # ── Step 5: Load dim_ticker ──────────────────────────────────
-def load_dim_ticker(engine) -> pd.DataFrame:
+def load_dim_ticker(tickers_found, engine) -> pd.DataFrame:
     """Insert ticker metadata into dim_ticker, return mapping with ticker_id."""
     insert_sql = text("""
         INSERT INTO dim_ticker (ticker_code, company_name, exchange, sector)
@@ -198,7 +225,12 @@ def load_dim_ticker(engine) -> pd.DataFrame:
     """)
 
     with engine.begin() as conn:
-        for ticker_code, meta in TICKER_META.items():
+        for ticker_code in tickers_found:
+            meta = TICKER_META.get(ticker_code, {
+                "company_name": f"PT {ticker_code} Indonesia Tbk",
+                "exchange": "IDX",
+                "sector": "Unspecified",
+            })
             conn.execute(insert_sql, {
                 "ticker_code":  ticker_code,
                 "company_name": meta["company_name"],
@@ -281,7 +313,8 @@ def main():
     dim_date = load_dim_date(df, engine)
 
     print("\n[5/5] Loading dim_ticker...")
-    dim_ticker = load_dim_ticker(engine)
+    tickers_found = df["ticker_code"].unique()
+    dim_ticker = load_dim_ticker(tickers_found, engine)
 
     print("\n[6/6] Loading fact_stock_prices...")
     load_fact(df, dim_date, dim_ticker, engine)
