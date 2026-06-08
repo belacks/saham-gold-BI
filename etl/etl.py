@@ -206,7 +206,7 @@ def load_dim_ticker(engine) -> pd.DataFrame:
                 "sector":       meta["sector"],
             })
 
-    dim_ticker_db = pd.read_sql("SELECT * FROM dim_ticker", engine)
+    dim_ticker_db = pd.read_sql("SELECT * FROM dim_ticker", engine) 
     print(f"  dim_ticker: {len(dim_ticker_db)} rows in DB")
     return dim_ticker_db
 
